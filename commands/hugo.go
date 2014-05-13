@@ -48,7 +48,7 @@ Complete documentation is available at http://hugo.spf13.com`,
 }
 var hugoCmdV *cobra.Command
 
-var BuildWatch, Draft, UglyUrls, Verbose, Logging, VerboseLog, DisableRSS bool
+var BuildWatch, Draft, UglyUrls, Verbose, Logging, VerboseLog, DisableRSS, DisableSitemap bool
 var Source, Destination, Theme, BaseUrl, CfgFile, LogFile string
 
 func Execute() {
@@ -68,6 +68,7 @@ func AddCommands() {
 func init() {
 	HugoCmd.PersistentFlags().BoolVarP(&Draft, "build-drafts", "D", false, "include content marked as draft")
 	HugoCmd.PersistentFlags().BoolVar(&DisableRSS, "disableRSS", false, "Do not build RSS files")
+	HugoCmd.PersistentFlags().BoolVar(&DisableSitemap, "disableSitemap", false, "Do not build Sitemap file")
 	HugoCmd.PersistentFlags().StringVarP(&Source, "source", "s", "", "filesystem path to read files relative from")
 	HugoCmd.PersistentFlags().StringVarP(&Destination, "destination", "d", "", "filesystem path to write files to")
 	HugoCmd.PersistentFlags().StringVarP(&Theme, "theme", "t", "", "theme to use (located in /themes/THEMENAME/)")
@@ -95,6 +96,7 @@ func InitializeConfig() {
 
 	viper.SetDefault("MetadataFormat", "toml")
 	viper.SetDefault("DisableRSS", false)
+	viper.SetDefault("DisableSitemap", false)
 	viper.SetDefault("ContentDir", "content")
 	viper.SetDefault("LayoutDir", "layouts")
 	viper.SetDefault("StaticDir", "static")
@@ -107,6 +109,9 @@ func InitializeConfig() {
 	viper.SetDefault("CanonifyUrls", false)
 	viper.SetDefault("Indexes", map[string]string{"tag": "tags", "category": "categories"})
 	viper.SetDefault("Permalinks", make(hugolib.PermalinkOverrides, 0))
+	viper.SetDefault("Sitemap", hugolib.Sitemap{Priority: -1})
+	viper.SetDefault("PygmentsStyle", "monokai")
+	viper.SetDefault("PygmentsUseClasses", false)
 
 	if hugoCmdV.PersistentFlags().Lookup("build-drafts").Changed {
 		viper.Set("BuildDrafts", Draft)
@@ -120,6 +125,10 @@ func InitializeConfig() {
 		viper.Set("DisableRSS", DisableRSS)
 	}
 
+	if hugoCmdV.PersistentFlags().Lookup("disableSitemap").Changed {
+		viper.Set("DisableSitemap", DisableSitemap)
+	}
+
 	if hugoCmdV.PersistentFlags().Lookup("verbose").Changed {
 		viper.Set("Verbose", Verbose)
 	}
@@ -127,7 +136,6 @@ func InitializeConfig() {
 	if hugoCmdV.PersistentFlags().Lookup("logfile").Changed {
 		viper.Set("LogFile", LogFile)
 	}
-
 	if BaseUrl != "" {
 		if !strings.HasSuffix(BaseUrl, "/") {
 			BaseUrl = BaseUrl + "/"

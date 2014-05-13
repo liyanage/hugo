@@ -16,31 +16,63 @@ import (
 	"github.com/spf13/hugo/helpers"
 )
 
-func Gt(a interface{}, b interface{}) bool {
-	var left, right int64
+func Eq(x, y interface{}) bool {
+	return reflect.DeepEqual(x, y)
+}
+
+func Ne(x, y interface{}) bool {
+	return !Eq(x, y)
+}
+
+func Ge(a, b interface{}) bool {
+	left, right := compareGetFloat(a, b)
+	return left >= right
+}
+
+func Gt(a, b interface{}) bool {
+	left, right := compareGetFloat(a, b)
+	return left > right
+}
+
+func Le(a, b interface{}) bool {
+	left, right := compareGetFloat(a, b)
+	return left <= right
+}
+
+func Lt(a, b interface{}) bool {
+	left, right := compareGetFloat(a, b)
+	return left < right
+}
+
+func compareGetFloat(a interface{}, b interface{}) (float64, float64) {
+	var left, right float64
 	av := reflect.ValueOf(a)
 
 	switch av.Kind() {
 	case reflect.Array, reflect.Chan, reflect.Map, reflect.Slice:
-		left = int64(av.Len())
+		left = float64(av.Len())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		left = av.Int()
+		left = float64(av.Int())
+	case reflect.Float32, reflect.Float64:
+		left = av.Float()
 	case reflect.String:
-		left, _ = strconv.ParseInt(av.String(), 10, 64)
+		left, _ = strconv.ParseFloat(av.String(), 64)
 	}
 
 	bv := reflect.ValueOf(b)
 
 	switch bv.Kind() {
 	case reflect.Array, reflect.Chan, reflect.Map, reflect.Slice:
-		right = int64(bv.Len())
+		right = float64(bv.Len())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		right = bv.Int()
+		right = float64(bv.Int())
+	case reflect.Float32, reflect.Float64:
+		right = bv.Float()
 	case reflect.String:
-		right, _ = strconv.ParseInt(bv.String(), 10, 64)
+		right, _ = strconv.ParseFloat(bv.String(), 64)
 	}
 
-	return left > right
+	return left, right
 }
 
 // First is exposed to templates, to iterate over the first N items in a
@@ -163,7 +195,12 @@ func NewTemplate() Template {
 	funcMap := template.FuncMap{
 		"urlize":      helpers.Urlize,
 		"sanitizeurl": helpers.SanitizeUrl,
+		"eq":          Eq,
+		"ne":          Ne,
 		"gt":          Gt,
+		"ge":          Ge,
+		"lt":          Lt,
+		"le":          Le,
 		"isset":       IsSet,
 		"echoParam":   ReturnWhenSet,
 		"safeHtml":    SafeHtml,

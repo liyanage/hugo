@@ -220,6 +220,10 @@ func (s *Site) Render() (err error) {
 		return
 	}
 	s.timerStep("render and write homepage")
+	if err = s.RenderSitemap(); err != nil {
+		return
+	}
+	s.timerStep("render and write Sitemap")
 	return
 }
 
@@ -261,9 +265,9 @@ func (s *Site) initializeSiteInfo() {
 		params = make(map[string]interface{})
 	}
 
-	permalinks, ok := viper.Get("Permalinks").(PermalinkOverrides)
-	if !ok {
-		permalinks = make(PermalinkOverrides)
+	permalinks := make(PermalinkOverrides)
+	for k, v := range viper.GetStringMapString("Permalinks") {
+		permalinks[k] = PathPattern(v)
 	}
 
 	s.Info = SiteInfo{
@@ -735,6 +739,60 @@ func (s *Site) RenderHomePage() error {
 
 		layouts := []string{"404.html"}
 		return s.render(n, "404.html", s.appendThemeTemplates(layouts)...)
+	}
+
+	return nil
+}
+
+func (s *Site) RenderSitemap() error {
+	if viper.GetBool("DisableSitemap") {
+		return nil
+	}
+
+	sitemapDefault := parseSitemap(viper.GetStringMap("Sitemap"))
+
+	optChanged := false
+
+	n := s.NewNode()
+
+	// Prepend homepage to the list of pages
+	pages := make(Pages, 0)
+
+	page := &Page{}
+	page.Date = s.Info.LastChange
+	page.Site = s.Info
+	page.Url = "/"
+
+	pages = append(pages, page)
+	pages = append(pages, s.Pages...)
+
+	n.Data["Pages"] = pages
+
+	for _, page := range pages {
+		if page.Sitemap.ChangeFreq == "" {
+			page.Sitemap.ChangeFreq = sitemapDefault.ChangeFreq
+		}
+
+		if page.Sitemap.Priority == -1 {
+			page.Sitemap.Priority = sitemapDefault.Priority
+		}
+	}
+
+	// Force `UglyUrls` option to force `sitemap.xml` file name
+	switch s.Target.(type) {
+	case *target.Filesystem:
+		s.Target.(*target.Filesystem).UglyUrls = true
+		optChanged = true
+	}
+
+	smLayouts := []string{"sitemap.xml", "_default/sitemap.xml", "_internal/_default/sitemap.xml"}
+	err := s.render(n, "sitemap.xml", s.appendThemeTemplates(smLayouts)...)
+	if err != nil {
+		return err
+	}
+
+	if optChanged {
+		s.Target.(*target.Filesystem).UglyUrls = viper.GetBool("UglyUrls")
 	}
 
 	return nil
