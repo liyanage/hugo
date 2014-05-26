@@ -419,14 +419,17 @@ func (s *Site) assembleMenus() {
 	menuConfig := s.getMenusFromConfig()
 	for name, menu := range menuConfig {
 		for _, me := range *menu {
-			flat[twoD{name, me.Name}] = me
+			flat[twoD{name, me.KeyName()}] = me
 		}
 	}
 
 	//creating flat hash
 	for _, p := range s.Pages {
 		for name, me := range p.Menus() {
-			flat[twoD{name, me.Name}] = me
+			if _, ok := flat[twoD{name, me.KeyName()}]; ok {
+				jww.ERROR.Printf("Two or more menu items have the same name/identifier in %q Menu. Identified as %q.\n Rename or set a unique identifier. \n", name, me.KeyName())
+			}
+			flat[twoD{name, me.KeyName()}] = me
 		}
 	}
 
@@ -703,7 +706,7 @@ func (s *Site) RenderHomePage() error {
 	n.Title = n.Site.Title
 	s.setUrls(n, "/")
 	n.Data["Pages"] = s.Pages
-	layouts := []string{"index.html"}
+	layouts := []string{"index.html", "_default/list.html", "_default/single.html"}
 	err := s.render(n, "/", s.appendThemeTemplates(layouts)...)
 	if err != nil {
 		return err
@@ -859,6 +862,10 @@ func (s *Site) render(d interface{}, out string, layouts ...string) (err error) 
 			return err
 		}
 		transformLinks = append(transformLinks, absURL...)
+	}
+
+	if viper.GetBool("watch") && !viper.GetBool("DisableLiveReload") {
+		transformLinks = append(transformLinks, transform.LiveReloadInject)
 	}
 
 	transformer := transform.NewChain(transformLinks...)

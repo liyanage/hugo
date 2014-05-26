@@ -15,6 +15,7 @@ package commands
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -29,12 +30,9 @@ import (
 var serverPort int
 var serverWatch bool
 var serverAppend bool
+var disableLiveReload bool
 
-func init() {
-	serverCmd.Flags().IntVarP(&serverPort, "port", "p", 1313, "port to run the server on")
-	serverCmd.Flags().BoolVarP(&serverWatch, "watch", "w", false, "watch filesystem for changes and recreate as needed")
-	serverCmd.Flags().BoolVarP(&serverAppend, "append-port", "", true, "append port to baseurl")
-}
+//var serverCmdV *cobra.Command
 
 var serverCmd = &cobra.Command{
 	Use:   "server",
@@ -42,7 +40,15 @@ var serverCmd = &cobra.Command{
 	Long: `Hugo is able to run it's own high performance web server.
 Hugo will render all the files defined in the source directory and
 Serve them up.`,
-	Run: server,
+	//Run: server,
+}
+
+func init() {
+	serverCmd.Flags().IntVarP(&serverPort, "port", "p", 1313, "port to run the server on")
+	serverCmd.Flags().BoolVarP(&serverWatch, "watch", "w", false, "watch filesystem for changes and recreate as needed")
+	serverCmd.Flags().BoolVarP(&serverAppend, "appendPort", "", true, "append port to baseurl")
+	serverCmd.Flags().BoolVar(&disableLiveReload, "disableLiveReload", false, "watch without enabling live browser reload on rebuild")
+	serverCmd.Run = server
 }
 
 func server(cmd *cobra.Command, args []string) {
@@ -52,8 +58,29 @@ func server(cmd *cobra.Command, args []string) {
 		BaseUrl = "http://localhost"
 	}
 
+	if cmd.Flags().Lookup("disableLiveReload").Changed {
+		viper.Set("DisableLiveReload", disableLiveReload)
+	}
+
+	if serverWatch {
+		viper.Set("Watch", true)
+	}
+
 	if !strings.HasPrefix(BaseUrl, "http://") {
 		BaseUrl = "http://" + BaseUrl
+	}
+
+	l, err := net.Listen("tcp", ":"+strconv.Itoa(serverPort))
+	if err == nil {
+		l.Close()
+	} else {
+		jww.ERROR.Println("port", serverPort, "already in use, attempting to use an available port")
+		sp, err := helpers.FindAvailablePort()
+		if err != nil {
+			jww.ERROR.Println("Unable to find alternative port to use")
+			jww.ERROR.Fatalln(err)
+		}
+		serverPort = sp.Port
 	}
 
 	if serverAppend {
@@ -78,12 +105,11 @@ func server(cmd *cobra.Command, args []string) {
 
 func serve(port int) {
 	jww.FEEDBACK.Println("Serving pages from " + helpers.AbsPathify(viper.GetString("PublishDir")))
-
 	jww.FEEDBACK.Printf("Web Server is available at %s\n", viper.GetString("BaseUrl"))
-
 	fmt.Println("Press ctrl+c to stop")
 
-	err := http.ListenAndServe(":"+strconv.Itoa(port), http.FileServer(http.Dir(helpers.AbsPathify(viper.GetString("PublishDir")))))
+	http.Handle("/", http.FileServer(http.Dir(helpers.AbsPathify(viper.GetString("PublishDir")))))
+	err := http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	if err != nil {
 		jww.ERROR.Printf("Error: %s\n", err.Error())
 		os.Exit(1)
